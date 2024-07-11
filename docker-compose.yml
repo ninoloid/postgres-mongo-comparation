@@ -1,0 +1,68 @@
+version: '3.7'
+
+services:
+  postgres-mongo-comparation-db:
+    image: postgres:14-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-mongo-comparation-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready']
+      interval: 10s
+      timeout: 20s
+      retries: 10
+    networks:
+      - postgres-mongo-comparation-network
+
+  postgres-mongo-comparation-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: development
+    ports:
+      - 3000:3000
+    depends_on:
+      postgres-mongo-comparation-db:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - .:/www/app
+      - /www/app/node_modules
+    command: /bin/sh -c "npm run migrate && npm run start:dev"
+    networks:
+      - postgres-mongo-comparation-network
+
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: poplite
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - postgres-mongo-comparation-network
+    healthcheck:
+      test: 'exit 0' # Custom health check to always return healthy
+      interval: 30s
+      retries: 3
+
+networks:
+  postgres-mongo-comparation-network:
+    driver: bridge
+
+volumes:
+  postgres-mongo-comparation-db:
+  mongodb_data:
+    driver: local
